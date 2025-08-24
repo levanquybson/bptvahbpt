@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Miền nghiệm & Hàm mục tiêu</title>
+<style>
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background-color: #1e4d2b; /* xanh bảng phấn */
+  color: #ffffff;
+}
+header{text-align:center;padding:10px;font-size:1.2em;font-weight:700;background:#27293d;}
+#container{display:flex;height:calc(100vh - 50px);}
+#controls{width:350px;background:#2b2c3d;padding:15px;overflow-y:auto;box-sizing:border-box;}
+#controls input,#controls button{width:100%;margin:6px 0;padding:8px;border-radius:6px;border:none;font-size:1em;}
+#controls button{cursor:pointer;font-weight:700;transition:0.15s;}
+.section-title{font-weight:700;margin-top:10px;color:#66c2ff;}
+#vertices{font-size:0.9em;margin-top:6px;max-height:160px;overflow-y:auto;color:#dfe;}
+.small-note{font-size:0.85em;color:#aab;margin-bottom:6px;}
+.button-row {display:flex;gap:10px;margin-top:10px;}
+.button-row button{flex:1;padding:10px 16px;border-radius:8px;font-size:1em;font-weight:600;cursor:pointer;box-shadow:0 3px 6px rgba(0,0,0,0.2);transition:all 0.2s ease-in-out;}
+#addConstraintBtn {background:linear-gradient(135deg,#4CAF50,#66BB6A);color:#fff;}
+#addConstraintBtn:hover {background:linear-gradient(135deg,#43A047,#57A05B);transform:translateY(-2px);box-shadow:0 5px 10px rgba(0,0,0,0.3);}
+#setObjective {background:linear-gradient(135deg,#42A5F5,#64B5F6);color:#fff;}
+#setObjective:hover {background:linear-gradient(135deg,#1E88E5,#42A5F5);transform:translateY(-2px);box-shadow:0 5px 10px rgba(0,0,0,0.3);}
+#reset {background:linear-gradient(135deg,#EF5350,#E57373);color:#fff;}
+#reset:hover {background:linear-gradient(135deg,#E53935,#EF5350);transform:translateY(-2px);box-shadow:0 5px 10px rgba(0,0,0,0.3);}
+#applyRange {background:linear-gradient(135deg,#AB47BC,#BA68C8);color:#fff;}
+#applyRange:hover {background:linear-gradient(135deg,#8E24AA,#AB47BC);transform:translateY(-2px);box-shadow:0 5px 10px rgba(0,0,0,0.3);}
+#canvas-container {
+  flex: 1;
+  background: #1e4d2b; /* xanh bảng phấn */
+  position: relative;
+}
+#optimize {
+  background: linear-gradient(135deg,#ffca28,#ffc107); /* vàng đậm */
+  color: #000;
+}
+#optimize:hover {
+  background: linear-gradient(135deg,#ffb300,#ffca28);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+}
+
+#minObjective {
+  background: linear-gradient(135deg,#26c6da,#00acc1); /* xanh ngọc */
+  color: #fff;
+}
+#minObjective:hover {
+  background: linear-gradient(135deg,#0097a7,#26c6da);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+}
+
+.objective-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;        /* khoảng cách giữa các phần */
+  margin-bottom: 10px;
+}
+
+.objective-row label {
+  white-space: nowrap;
+}
+
+#objective {
+  flex: 1;         /* để input chiếm hết chỗ trống còn lại */
+}
+
+#objective-value {
+  font-weight: bold;
+  color: #ffd54f;  /* vàng nổi bật trên nền xanh bảng */
+  white-space: nowrap;
+}
+
+canvas{display:block;width:100%;height:100%;cursor:grab;}
+canvas:active{cursor:grabbing;}
+
+
+body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    footer {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      text-align: center;
+      padding: 10px;
+      font-size: 14px;
+      background: #f0f0f0;
+      color: #333;
+      border-top: 1px solid #ccc;
+
+      /* chống copy / bôi đen */
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+
+
+</style>
+
+
+
+
+</head>
+<body>
+
+<header><H1>MIỀN NGHIỆM CỦA BPT & BÀI TOÁN QUY HOẠCH TUYẾN TÍNH</H1>
+<p style="color:#ffd54f; font-style:italic; font-weight:600; margin:8px 0;">
+  “Nếu con người không tin toán học là đơn giản, thì chỉ vì họ chưa nhận ra cuộc sống phức tạp đến mức nào.”
+ <p style="color:#2196f3; font-weight:600; text-align:right; margin:4px 0;">
+  (John von Neumann: 1903–1957)
+</p>
+
+<script type="application/json" id="hidden-b64">
+  {"data": "QyAyMDI1IMSRcSBWxqFuIFF14buRYStHUFQuIEFsbCByaWdodHMgcmVzZXJ2ZWQu"}
+</script>
+
+
+</header>
+<div id="container">
+  <div id="controls">
+    <div class="section-title">Nhập bất phương trình</div>
+    <div id="constraints-list">
+      <div class="constraint-box"><input type="text" placeholder="ví dụ: x+y<=5"></div>
+    </div>
+    <button id="addConstraintBtn">Thêm bất phương trình</button>
+
+    <div class="section-title">Nhập hàm mục tiêu F(x,y) = ax + by</div>
+    <input id="objective" type="text" placeholder="Ví dụ: 2x+y">
+    
+    <div class="button-row">
+    
+      <button id="optimize">Max F</button>
+      <button id="minObjective">Min F</button>
+      <button id="reset">Reset</button>
+    </div>
+
+<div class="objective-row">
+  <label for="objective">Giá trị của hàm mục tiêu:</label>
+ 
+  <span id="objective-value">F = 0</span>
+</div>
+
+    <div class="small-note">Kéo chuột trên canvas để thay đổi đường mức hàm (nhấn giữ & kéo).</div>
+
+    <div class="section-title">Đỉnh miền nghiệm chung</div>
+    <div id="vertices">Chưa có.</div>
+
+    <div class="section-title">Giới hạn trục tọa độ</div>
+    <div style="margin-bottom:6px;">
+      <label>xmin: <input id="xmin" type="number" value="-10" style="width:60px"></label>
+      <label>xmax: <input id="xmax" type="number" value="10" style="width:60px; margin-left:8px;"></label>
+    </div>
+    <div style="margin-bottom:6px;">
+      <label>ymin: <input id="ymin" type="number" value="-10" style="width:60px"></label>
+      <label>ymax: <input id="ymax" type="number" value="10" style="width:60px; margin-left:8px;"></label>
+    </div>
+    <button id="applyRange">Điều chỉnh hệ tọa độ</button>
+ 
+ </div>
+
+  <div id="canvas-container"><canvas id="graph"></canvas></div>
+</div>
+
+<script>
+const canvas = document.getElementById('graph');
+const ctx = canvas.getContext('2d');
+let width=0,height=0,scale=40,origin={x:0,y:0};
+let allConstraints=[], objective=null, vertices=[], dragging=false;
+
+function fitCanvas(){
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  width = canvas.width; height = canvas.height;
+  if(origin.x===0 && origin.y===0) origin = {x: width/2, y: height/2};
+}
+fitCanvas();
+window.addEventListener('resize', ()=>{ fitCanvas(); draw(); });
+
+// ---- coord conversions ----
+const toCanvasX = x=>origin.x + x*scale;
+const toCanvasY = y=>origin.y - y*scale;
+const toMathX = sx=>(sx - origin.x)/scale;
+const toMathY = sy=>(origin.y - sy)/scale;
+
+// ---- parse ----
+function parseIneq(str){
+  if(!str) return null;
+  str = str.replace(/\s+/g,'');
+  const opMatch = str.match(/(<=|>=|<|>)/); if(!opMatch) return null;
+  const op = opMatch[0];
+  const parts = str.split(op); if(parts.length!==2) return null;
+  const left = parts[0]||'', right = parseFloat(parts[1]); if(isNaN(right)) return null;
+  let a=0,b=0;
+  for(const m of left.matchAll(/([+-]?(\d+(\.\d+)?|\.\d+)?)([xy])/g)){
+    const val = (m[1]===''||m[1]=='+')?1:(m[1]==='-'?-1:parseFloat(m[1]));
+    if(m[4]==='x') a+=val; else b+=val;
+  }
+  return {a,b,c:right,op};
+}
+function parseObjective(str){
+  if(!str) return null;
+  str = str.replace(/\s+/g,'');
+  const ax = str.match(/([+-]?(\d+(\.\d+)?|\.\d+)?)(?=x)/);
+  const ay = str.match(/([+-]?(\d+(\.\d+)?|\.\d+)?)(?=y)/);
+  let a=0,b=0,c=0;
+  if(ax) a=(ax[1]===''||ax[1]=='+')?1:(ax[1]==='-'?-1:parseFloat(ax[1]));
+  if(ay) b=(ay[1]===''||ay[1]=='+')?1:(ay[1]==='-'?-1:parseFloat(ay[1]));
+  let rest = str.replace(/([+-]?(\d+(\.\d+)?|\.\d+)?x)/g,'').replace(/([+-]?(\d+(\.\d+)?|\.\d+)?y)/g,'');
+  if(rest && rest!=='+' && rest!=='-') c=parseFloat(rest)||0;
+  return {a,b,c,k:null};
+}
+
+// ---- update ----
+function updateConstraintsFromInputs(){
+  const inputs = [...document.querySelectorAll('#constraints-list input')];
+  const newCons = [];
+  inputs.forEach(inp=>{ const con=parseIneq(inp.value); if(con) newCons.push(con); });
+  allConstraints = newCons; computeFeasibleRegion(); draw();
+}
+
+// ---- compute feasible polygon (Sutherland–Hodgman) ----
+// ---- compute feasible polygon và cập nhật nhãn bên trái ----
+
+// ---- compute feasible polygon và cập nhật nhãn bên trái ----
+function computeFeasibleRegion(){
+  const M = 1e4;
+  let poly = [{x:-M,y:-M},{x:M,y:-M},{x:M,y:M},{x:-M,y:M}];
+  const eps=1e-9;
+  for(const con of allConstraints){
+    const {a,b,c,op} = con;
+    const inside=p=>{const val=a*p.x+b*p.y-c; return (op=='<='||op=='<')?val<=eps:val>=-eps;};
+    const newPoly=[];
+    for(let i=0;i<poly.length;i++){
+      const P=poly[i], Q=poly[(i+1)%poly.length];
+      const Pin=inside(P), Qin=inside(Q);
+      if(Pin) newPoly.push(P);
+      if(Pin^Qin){
+        const dx=Q.x-P.x, dy=Q.y-P.y;
+        const denom=a*dx+b*dy;
+        if(Math.abs(denom)>1e-12){
+          const t=(c-a*P.x-b*P.y)/denom;
+          newPoly.push({x:P.x+t*dx, y:P.y+t*dy});
+        }
+      }
+    }
+    poly=newPoly; if(poly.length===0) break;
+  }
+  // clean duplicates
+  if(poly.length>1){
+    const cleaned=[];
+    for(const p of poly){
+      const last=cleaned[cleaned.length-1];
+      if(!last || Math.hypot(last.x-p.x,last.y-p.y)>1e-6) cleaned.push(p);
+    }
+    if(cleaned.length>1 && Math.hypot(cleaned[0].x-cleaned[cleaned.length-1].x, cleaned[0].y-cleaned[cleaned.length-1].y)<1e-6) cleaned.pop();
+    poly=cleaned;
+  }
+  vertices=poly;
+
+  // ---- cập nhật nhãn canvas, bỏ gốc O ----
+  vertexLabelsPos = [];
+  vertices.forEach((v,i)=>{ 
+    if(Math.abs(v.x)<1e-6 && Math.abs(v.y)<1e-6) { vertexLabelsPos.push(null); return; }
+    vertexLabelsPos.push({x:toCanvasX(v.x)+10, y:toCanvasY(v.y)-10}); 
+  });
+
+  // ---- cập nhật cột trái ----
+  const vDiv=document.getElementById('vertices');
+  if(!vertices||vertices.length<1) { vDiv.innerHTML="Không có miền nghiệm (rỗng)"; return; }
+  
+  const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let html = '';
+  let hasOrigin = false;
+  vertices.forEach((p,i)=>{
+    if(Math.abs(p.x)<1e-6 && Math.abs(p.y)<1e-6) { hasOrigin = true; return; } // gốc O
+    html += `${labels[i]||'V'+(i+1)}(${p.x.toFixed(2)}, ${p.y.toFixed(2)})<br>`;
+  });
+  if(hasOrigin) html = `O(0.00, 0.00)<br>` + html;
+  vDiv.innerHTML = html || "Không có miền nghiệm (rỗng)";
+}
+
+// ---- point in polygon ----
+function pointInPoly(x,y,poly){
+  if(!poly||poly.length<3) return false;
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    const inter = ((yi>y)!==(yj>y)) && (x<(xj-xi)*(y-yi)/(yj-yi)+xi);
+    if(inter) inside=!inside;
+  }
+  return inside;
+}
+
+// ---- draw grid/axes ----
+function drawGrid(){
+  ctx.clearRect(0,0,width,height);
+
+  // --- lưới ---
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  const step = scale;
+  for(let x = origin.x % step; x < width; x += step){
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
+  }
+  for(let y = origin.y % step; y < height; y += step){
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
+  }
+
+  // --- trục tọa độ ---
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+
+  // Ox
+  ctx.beginPath();
+  ctx.moveTo(0,origin.y); ctx.lineTo(width,origin.y); ctx.stroke();
+
+  // Oy
+  ctx.beginPath();
+  ctx.moveTo(origin.x,0); ctx.lineTo(origin.x,height); ctx.stroke();
+
+  // --- mũi tên Ox ---
+  ctx.beginPath();
+  ctx.moveTo(width-15, origin.y-8);
+  ctx.lineTo(width, origin.y);
+  ctx.lineTo(width-15, origin.y+8);
+  ctx.fillStyle='#fff'; ctx.fill();
+  ctx.font = "16px Arial"; ctx.fillText("x", width-20, origin.y-10);
+
+  // --- mũi tên Oy ---
+  ctx.beginPath();
+  ctx.moveTo(origin.x-8,15);
+  ctx.lineTo(origin.x,0);
+  ctx.lineTo(origin.x+8,15);
+  ctx.fillStyle='#fff'; ctx.fill();
+  ctx.fillText("y", origin.x+10, 20);
+
+  // --- gốc O ---
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(origin.x, origin.y, 5, 0, 2*Math.PI);
+  ctx.fill();
+  ctx.font = "14px Arial";
+  ctx.fillText("O", origin.x+6, origin.y-6);
+}
+
+// ---- hatch ngoài miền nghiệm ----
+function drawHatchHalfPlane(con){
+  const {a,b,c,op}=con; ctx.save(); ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=2;
+  const spacing=16, segStep=12;
+  for(let startX=-height;startX<width+height;startX+=spacing){
+    const x1=startX,y1=0, x2=startX+height, y2=height, dx=x2-x1, dy=y2-y1, L=Math.hypot(dx,dy);
+    const steps=Math.ceil(L/segStep);
+    for(let s=0;s<steps;s++){
+      const t0=s/steps, t1=(s+1)/steps;
+      const sx0=x1+dx*t0, sy0=y1+dy*t0, sx1=x1+dx*t1, sy1=y1+dy*t1;
+      const mx=(sx0+sx1)/2, my=(sy0+sy1)/2, mxMath=toMathX(mx), myMath=toMathY(my);
+      const val=a*mxMath+b*myMath-c; const inside=(op=='<='||op=='<')?val<=1e-8:val>=-1e-8;
+      let insideFeasible=false; if(vertices && vertices.length>=3) insideFeasible=pointInPoly(mxMath,myMath,vertices);
+      if(!inside && !insideFeasible){ctx.beginPath();ctx.moveTo(sx0,sy0);ctx.lineTo(sx1,sy1);ctx.stroke();}
+    }
+  }
+  ctx.restore();
+}
+
+// ---- draw BPT line ----
+function drawBPTLine(con){
+  const {a,b,c,op}=con; ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.setLineDash((op=='<'||op=='>')?[6,6]:[]);
+  const big=1e3; let p1,p2;
+  if(Math.abs(b)>1e-12){p1={x:-big,y:(c-a*(-big))/b}; p2={x:big,y:(c-a*big)/b};}
+  else if(Math.abs(a)>1e-12){const x0=c/a; p1={x:x0,y:-big};p2={x:x0,y:big};}
+  else return;
+  ctx.beginPath(); ctx.moveTo(toCanvasX(p1.x),toCanvasY(p1.y)); ctx.lineTo(toCanvasX(p2.x),toCanvasY(p2.y)); ctx.stroke(); ctx.setLineDash([]);
+}
+
+// ---- draw feasible region ----
+function drawFeasibleRegion(){
+  if(!vertices||vertices.length<3) return;
+  ctx.fillStyle='rgba(102,255,178,0.28)'; ctx.beginPath();
+  ctx.moveTo(toCanvasX(vertices[0].x),toCanvasY(vertices[0].y));
+  for(let i=1;i<vertices.length;i++) ctx.lineTo(toCanvasX(vertices[i].x),toCanvasY(vertices[i].y));
+  ctx.closePath(); ctx.fill(); ctx.strokeStyle='rgba(102,255,178,0.95)'; ctx.lineWidth=2; ctx.stroke();
+}
+
+// ---- draw objective ----
+function drawObjective(){
+  if(!objective) return;
+  const {a,b,c,k}=objective;
+  const K=(typeof k==='number')? k : c;
+  const big=1e3; let p1,p2;
+  if(Math.abs(b)>1e-12){ p1={x:-big,y:(K-a*(-big))/b}; p2={x:big,y:(K-a*big)/b}; }
+  else if(Math.abs(a)>1e-12){ const x0=K/a; p1={x:x0,y:-big}; p2={x:x0,y:big}; }
+  else return;
+  ctx.strokeStyle='#ff4444'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(toCanvasX(p1.x),toCanvasY(p1.y)); ctx.lineTo(toCanvasX(p2.x),toCanvasY(p2.y)); ctx.stroke();
+  
+const objDiv = document.getElementById('objective-value');
+if(objDiv) objDiv.innerText = K.toFixed(2); // chỉ số, F = giữ trong HTML
+}
+
+// ---- compute optimal vertex ----
+function computeOptimalVertex(){
+  if(!objective||!vertices||vertices.length<1) return null;
+  let best=null,bestVal=null;
+  for(const v of vertices){
+    const val=objective.a*v.x+objective.b*v.y+objective.c;
+    if(bestVal===null||val>bestVal){bestVal=val; best=v;}
+  }
+  return best?{vertex:best,value:bestVal}:null;
+}
+
+function computeMinVertex(){
+  if(!objective || !vertices || vertices.length === 0) return null;
+  let minValue = Infinity, minVertex = null;
+  vertices.forEach(v=>{
+    const val = objective.a*v.x + objective.b*v.y + objective.c;
+    if(val < minValue){ minValue = val; minVertex = v; }
+  });
+  if(minVertex) return {vertex: minVertex, value: minValue};
+  return null;
+}
+
+
+// ---- draw optimal point ----
+function drawOptimalPoint(){
+  const opt=computeOptimalVertex(); if(!opt) return;
+  const {vertex,value}=opt; ctx.fillStyle='#ff0';
+  ctx.beginPath(); ctx.arc(toCanvasX(vertex.x),toCanvasY(vertex.y),6,0,2*Math.PI); ctx.fill();
+}
+
+function drawMinPoint(){
+  const minOpt = computeMinVertex();
+  if(!minOpt) return;
+  const {vertex, value} = minOpt;
+  ctx.fillStyle = '#ff8800';  // cam
+  ctx.beginPath();
+  ctx.arc(toCanvasX(vertex.x), toCanvasY(vertex.y), 6, 0, 2*Math.PI);
+  ctx.fill();
+  ctx.font = '14px Arial';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`}`, toCanvasX(vertex.x)+8, toCanvasY(vertex.y)-8);
+}
+
+function drawVertexLabels(){
+  if(!vertices || vertices.length < 1) return;
+  ctx.font = 'bold 16px Arial'; // đậm và to hơn
+  ctx.fillStyle = '#ff0'; // vàng nổi bật trên hatch
+  const labels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  vertices.forEach((v,i)=>{
+    // bỏ nhãn nếu trùng gốc tọa độ
+    if(Math.abs(v.x)<1e-6 && Math.abs(v.y)<1e-6) return;
+    const label = labels[i%labels.length];
+    ctx.fillText(label, toCanvasX(v.x)+4, toCanvasY(v.y)-4);
+  });
+}
+
+function parseObjective(expr) {
+  expr = expr.replace(/\s+/g, ""); // bỏ khoảng trắng
+
+  // thêm 1 trước x hoặc y nếu bị bỏ trống
+  expr = expr.replace(/(^|[+\-])x/g, "$11x");
+  expr = expr.replace(/(^|[+\-])y/g, "$11y");
+
+  // tách hệ số
+  let aMatch = expr.match(/([+\-]?\d+)x/);
+  let bMatch = expr.match(/([+\-]?\d+)y/);
+  let cMatch = expr.replace(/([+\-]?\d+x)?/, "")
+                   .replace(/([+\-]?\d+y)?/, "");
+
+  let a = aMatch ? parseFloat(aMatch[1]) : 0;
+  let b = bMatch ? parseFloat(bMatch[1]) : 0;
+  let c = cMatch ? parseFloat(cMatch) : 0;
+
+  return {a, b, c};
+}
+
+function setObjectiveFromInput() {
+  const expr = document.getElementById('objective').value.trim();
+  if(!expr) return;
+
+  const {a, b, c} = parseObjective(expr);
+  objective = {a, b, c, k:0};
+  draw();
+}
+// lắng nghe nhập liệu để vẽ luôn
+document.getElementById('objective').addEventListener('input', setObjectiveFromInput);
+
+
+// ---- thêm input BPT ----
+function addConstraintInput(withDelete=true){
+  const div = document.createElement('div');
+  div.className='constraint-box';
+  div.style.display='flex'; div.style.alignItems='center'; div.style.gap='6px';
+
+  const inp = document.createElement('input');
+  inp.type='text'; inp.placeholder='ví dụ: x+y<=5';
+  inp.style.flex='1';
+  inp.addEventListener('input', updateConstraintsFromInputs);
+
+  div.appendChild(inp);
+
+  if(withDelete){
+    const delBtn = document.createElement('button');
+    delBtn.textContent='✕';
+    delBtn.style.width='30px'; delBtn.style.padding='0'; delBtn.style.fontWeight='700'; delBtn.style.cursor='pointer';
+    delBtn.onclick = ()=>{
+      div.remove();
+      updateConstraintsFromInputs();
+    };
+    div.appendChild(delBtn);
+  }
+
+  document.getElementById('constraints-list').appendChild(div);
+}
+
+// ---- khởi tạo trang ----
+document.getElementById('constraints-list').innerHTML='';
+// ô mặc định đầu tiên, không có nút xóa
+addConstraintInput(false);
+
+
+// ---- draw all ----
+
+function draw(){
+  drawGrid();
+  allConstraints.forEach(con=>drawHatchHalfPlane(con));
+  allConstraints.forEach(con=>drawBPTLine(con));
+ 
+  drawObjective();
+  drawOptimalPoint();
+  drawMinPoint();
+  drawVertexLabels(); // <- thêm dòng này
+}
+
+
+
+
+// ---- events ----
+document.getElementById('addConstraintBtn').onclick = ()=>{
+  const div = document.createElement('div'); div.className='constraint-box';
+  const inp=document.createElement('input'); inp.type='text'; inp.placeholder='ví dụ: x+y<=5';
+  div.appendChild(inp); document.getElementById('constraints-list').appendChild(div);
+};
+
+
+
+document.getElementById('applyRange').onclick = ()=>{
+  const xmin=parseFloat(document.getElementById('xmin').value),
+        xmax=parseFloat(document.getElementById('xmax').value),
+        ymin=parseFloat(document.getElementById('ymin').value),
+        ymax=parseFloat(document.getElementById('ymax').value);
+  if(isNaN(xmin)||isNaN(xmax)||isNaN(ymin)||isNaN(ymax)||xmax<=xmin||ymax<=ymin){alert('Lỗi giá trị'); return;}
+  scale=Math.min(width/(xmax-xmin), height/(ymax-ymin));
+  origin={x:-xmin*scale, y:height+ymin*scale}; draw();
+};
+document.getElementById('reset').onclick = ()=>{
+  allConstraints=[]; objective=null; vertices=[]; document.getElementById('constraints-list').innerHTML='<div class="constraint-box"><input type="text" placeholder="ví dụ: x+y<=5"></div>';
+  document.getElementById('objective').value=''; document.getElementById('vertices').innerHTML='Chưa có.'; scale=40; origin={x:width/2,y:height/2}; draw();
+};
+document.getElementById('optimize').onclick = ()=>{
+  if(!objective) return; const opt=computeOptimalVertex(); if(!opt) return;
+  objective.k=objective.a*opt.vertex.x+objective.b*opt.vertex.y+objective.c; draw();
+};
+document.getElementById('minObjective').onclick = ()=>{
+  const opt = computeMinVertex();
+  if(!opt) return;
+  objective.k = objective.a*opt.vertex.x + objective.b*opt.vertex.y + objective.c;
+  draw();
+};
+
+
+
+// ---- drag to adjust objective line ----
+canvas.addEventListener('mousedown',e=>{dragging=true;});
+canvas.addEventListener('mouseup',e=>{dragging=false;});
+canvas.addEventListener('mouseleave',e=>{dragging=false;});
+canvas.addEventListener('mousemove',e=>{
+  if(!dragging||!objective) return;
+  const rect=canvas.getBoundingClientRect(), mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const val=objective.a*toMathX(mx)+objective.b*toMathY(my)+objective.c;
+  objective.k=val; draw();
+});
+
+// ---- update on input changes ----
+document.querySelector('#constraints-list').addEventListener('input',updateConstraintsFromInputs);
+
+// initial draw
+draw();
+
+</script>
+
+
+<meta charset="UTF-8">
+<footer id="copyright"></footer>
+
+<script>
+ 
+  const b64Copyright = "wqkgMjAyNSBMw6ogVsSDbiBRdcO9K0dQVC4gQWxsIHJpZ2h0cyByZXNlcnZlZC4=";
+
+  const bytes = Uint8Array.from(atob(b64Copyright), c => c.charCodeAt(0));
+  const text  = new TextDecoder("utf-8").decode(bytes);
+
+  console.log(text);
+
+  document.getElementById("copyright").textContent = text;
+
+  document.addEventListener("contextmenu", e => e.preventDefault());
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey && e.key.toLowerCase() === "c") {
+      e.preventDefault();
+      alert("!");
+    }
+  });
+</script>
+
+
+</body>
+
+</html>
