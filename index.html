@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Miền nghiệm & Hàm mục tiêu</title>
 <style>
 body {
@@ -83,6 +83,31 @@ body {
       margin: 0;
       font-family: Arial, sans-serif;
     }
+
+
+@media (max-width: 768px) {
+  #container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  #controls {
+    width: auto;
+    height: auto;
+  }
+
+  #canvas-container {
+    height: 400px; /* hoặc 50vh, hoặc auto tùy ý */
+  }
+}
+#canvas-container {
+  flex: 1;
+  background: #1e4d2b;
+  position: relative;
+  min-height: 300px; /* Thêm dòng này */
+}
+
+
     footer {
       position: fixed;
       bottom: 0;
@@ -105,6 +130,13 @@ body {
 
 
 
+#graph {
+  width: 70%;          /* hoặc 60%, 80% tuỳ bạn muốn nhỏ hay to */
+  aspect-ratio: 1 / 1; /* luôn giữ hình vuông */
+  display: block;
+  margin: 0 auto;      /* căn giữa */
+  border: 1px solid #ccc; /* tuỳ chọn: có khung cho dễ thấy */
+}
 
 
   
@@ -183,12 +215,16 @@ let allConstraints=[], objective=null, vertices=[], dragging=false;
 
 function fitCanvas(){
   canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
+canvas.height = canvas.offsetWidth;  // ép vuông
+
   width = canvas.width; height = canvas.height;
   if(origin.x===0 && origin.y===0) origin = {x: width/2, y: height/2};
 }
 fitCanvas();
-window.addEventListener('resize', ()=>{ fitCanvas(); draw(); });
+// dùng cùng một đường tính để không “lệch” so với Reset/applyRange
+window.addEventListener('resize', resizeCanvasAndRedraw);
+// gọi 1 lần khi trang load để đồng bộ ngay từ đầu
+window.addEventListener('load', resizeCanvasAndRedraw);
 
 // ---- coord conversions ----
 const toCanvasX = x=>origin.x + x*scale;
@@ -329,8 +365,14 @@ function drawGrid(){
   ctx.moveTo(0,origin.y); ctx.lineTo(width,origin.y); ctx.stroke();
 
   // Oy
-  ctx.beginPath();
-  ctx.moveTo(origin.x,0); ctx.lineTo(origin.x,height); ctx.stroke();
+// --- trục Oy ---
+// thay vì vẽ đúng từ 0 → height, mình kéo dài ra thêm 30%
+ctx.strokeStyle = '#fff';
+ctx.lineWidth = 2;
+ctx.beginPath();
+ctx.moveTo(origin.x, -height * 0.5);       // vẽ cao hơn 30% so với canvas
+ctx.lineTo(origin.x, height * 1.5);       // vẽ thấp hơn 30% so với canvas
+ctx.stroke();
 
   // --- mũi tên Ox ---
   ctx.beginPath();
@@ -544,10 +586,44 @@ function draw(){
   drawVertexLabels(); // <- thêm dòng này
 }
 
+function resizeCanvasAndRedraw() {
+  fitCanvas();
 
+  let xmin = parseFloat(document.getElementById('xmin').value),
+      xmax = parseFloat(document.getElementById('xmax').value),
+      ymin = parseFloat(document.getElementById('ymin').value),
+      ymax = parseFloat(document.getElementById('ymax').value);
+
+  if (isNaN(xmin) || isNaN(xmax) || isNaN(ymin) || isNaN(ymax) || xmax <= xmin || ymax <= ymin) {
+    draw();
+    return;
+  }
+
+  // --- chọn khung hình vuông ---
+  const side = Math.min(width, height);   // cạnh hình vuông
+  const offsetX = (width  - side) / 2;    // căn giữa ngang
+  const offsetY = (height - side) / 2;    // căn giữa dọc
+
+  // --- cân bằng hệ trục ---
+  const dx = xmax - xmin;
+  const dy = ymax - ymin;
+  const L = Math.max(dx, dy);             // độ dài lớn nhất theo đơn vị
+  scale = side / L;                       // 1 đơn vị = scale px
+
+  // --- origin nằm trong hình vuông ---
+  origin = {
+    x: offsetX + (-xmin) * scale,
+    y: side + offsetY + ymin * scale
+  };
+
+  draw();
+}
+
+window.addEventListener("orientationchange", resizeCanvasAndRedraw);
 
 
 // ---- events ----
+
 document.getElementById('addConstraintBtn').onclick = ()=>{
   const div = document.createElement('div'); div.className='constraint-box';
   const inp=document.createElement('input'); inp.type='text'; inp.placeholder='ví dụ: x+y<=5';
@@ -556,15 +632,52 @@ document.getElementById('addConstraintBtn').onclick = ()=>{
 
 
 
-document.getElementById('applyRange').onclick = ()=>{
-  const xmin=parseFloat(document.getElementById('xmin').value),
-        xmax=parseFloat(document.getElementById('xmax').value),
-        ymin=parseFloat(document.getElementById('ymin').value),
-        ymax=parseFloat(document.getElementById('ymax').value);
-  if(isNaN(xmin)||isNaN(xmax)||isNaN(ymin)||isNaN(ymax)||xmax<=xmin||ymax<=ymin){alert('Lỗi giá trị'); return;}
-  scale=Math.min(width/(xmax-xmin), height/(ymax-ymin));
-  origin={x:-xmin*scale, y:height+ymin*scale}; draw();
+document.getElementById('applyRange').onclick = ()=> {
+  let xmin = parseFloat(document.getElementById('xmin').value),
+      xmax = parseFloat(document.getElementById('xmax').value),
+      ymin = parseFloat(document.getElementById('ymin').value),
+      ymax = parseFloat(document.getElementById('ymax').value);
+
+  if (isNaN(xmin) || isNaN(xmax) || isNaN(ymin) || isNaN(ymax) || xmax <= xmin || ymax <= ymin) {
+    alert('Lỗi giá trị'); 
+    return;
+  }
+
+  // --- Bước 1: chuẩn hóa để dx == dy quanh tâm ---
+  let dx = xmax - xmin;
+  let dy = ymax - ymin;
+  let cx = (xmin + xmax) / 2;
+  let cy = (ymin + ymax) / 2;
+  let L = Math.max(dx, dy);
+
+  xmin = cx - L/2;
+  xmax = cx + L/2;
+  ymin = cy - L/2;
+  ymax = cy + L/2;
+
+  // --- Bước 2: cập nhật input ---
+  document.getElementById('xmin').value = xmin;
+  document.getElementById('xmax').value = xmax;
+  document.getElementById('ymin').value = ymin;
+  document.getElementById('ymax').value = ymax;
+
+  // --- Bước 3: tính scale + origin theo căn giữa ---
+  scale = Math.min(width/(xmax-xmin), height/(ymax-ymin));
+
+  const viewW = scale * (xmax - xmin);
+  const viewH = scale * (ymax - ymin);
+  const padX  = (width  - viewW) / 2;
+  const padY  = (height - viewH) / 2;
+
+  origin = {
+    x: padX - xmin * scale,
+    y: height - padY + ymin * scale
+  };
+
+  draw();
 };
+
+
 document.getElementById('reset').onclick = ()=>{
   allConstraints=[]; objective=null; vertices=[]; document.getElementById('constraints-list').innerHTML='<div class="constraint-box"><input type="text" placeholder="ví dụ: x+y<=5"></div>';
   document.getElementById('objective').value=''; document.getElementById('vertices').innerHTML='Chưa có.'; scale=40; origin={x:width/2,y:height/2}; draw();
@@ -633,4 +746,5 @@ draw();
 </body>
 
 </html>
+
 
