@@ -213,12 +213,20 @@ const ctx = canvas.getContext('2d');
 let width=0,height=0,scale=40,origin={x:0,y:0};
 let allConstraints=[], objective=null, vertices=[], dragging=false;
 
-function fitCanvas(){
-  canvas.width = canvas.offsetWidth;
-canvas.height = canvas.offsetWidth;  // ép vuông
+// --- thêm hằng số an toàn ngay phía trên các biến khác ---
+const MIN_SCALE = 0.02;   // px / unit (không để < 0.02)
+const MAX_SCALE = 1000;   // px / unit (không để > 1000)
 
+// --- thay thế fitCanvas() ---
+function fitCanvas(){
+  // đảm bảo canvas vuông theo offsetWidth (CSS)
+  const w = Math.max(100, Math.round(canvas.offsetWidth || 300));
+  canvas.style.width = w + 'px';
+  canvas.style.height = w + 'px';
+  canvas.width = w;
+  canvas.height = w;
   width = canvas.width; height = canvas.height;
-  if(origin.x===0 && origin.y===0) origin = {x: width/2, y: height/2};
+  if (!origin || (origin.x === 0 && origin.y === 0)) origin = {x: width/2, y: height/2};
 }
 fitCanvas();
 // dùng cùng một đường tính để không “lệch” so với Reset/applyRange
@@ -343,60 +351,62 @@ function pointInPoly(x,y,poly){
 
 // ---- draw grid/axes ----
 function drawGrid(){
-  ctx.clearRect(0,0,width,height);
+  // 1) vẽ nền cố định (đỡ bị "đen" nếu có lỗi rendering)
+  ctx.save();
+  ctx.fillStyle = '#1e4d2b';
+  ctx.fillRect(0,0,width,height);
 
-  // --- lưới ---
+  // 2) tính bước pixel cho lưới (không lấy trực tiếp scale khi scale quá nhỏ)
+  let stepPx = Math.round(Math.abs(scale));
+  if (!isFinite(stepPx) || stepPx < 6) stepPx = 8; // tối thiểu 6-8 px giữa 2 đường lưới
+  // nếu scale quá lớn, stepPx có thể rất lớn — vẫn ok
+
+  // --- vẽ lưới ---
   ctx.strokeStyle = '#333';
   ctx.lineWidth = 1;
-  const step = scale;
-  for(let x = origin.x % step; x < width; x += step){
+  // bắt đầu từ vị trí trong canvas tương ứng modulo stepPx (luôn dương)
+  let startX = ((origin.x % stepPx) + stepPx) % stepPx;
+  for(let x = startX; x < width; x += stepPx){
     ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke();
   }
-  for(let y = origin.y % step; y < height; y += step){
+  let startY = ((origin.y % stepPx) + stepPx) % stepPx;
+  for(let y = startY; y < height; y += stepPx){
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke();
   }
 
   // --- trục tọa độ ---
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
-
   // Ox
   ctx.beginPath();
-  ctx.moveTo(0,origin.y); ctx.lineTo(width,origin.y); ctx.stroke();
-
-  // Oy
-// --- trục Oy ---
-// thay vì vẽ đúng từ 0 → height, mình kéo dài ra thêm 30%
-ctx.strokeStyle = '#fff';
-ctx.lineWidth = 2;
-ctx.beginPath();
-ctx.moveTo(origin.x, -height * 0.5);       // vẽ cao hơn 30% so với canvas
-ctx.lineTo(origin.x, height * 1.5);       // vẽ thấp hơn 30% so với canvas
-ctx.stroke();
-
-  // --- mũi tên Ox ---
+  ctx.moveTo(0, origin.y); ctx.lineTo(width, origin.y); ctx.stroke();
+  // Oy (kéo dài một chút)
   ctx.beginPath();
-  ctx.moveTo(width-15, origin.y-8);
-  ctx.lineTo(width, origin.y);
-  ctx.lineTo(width-15, origin.y+8);
-  ctx.fillStyle='#fff'; ctx.fill();
+  ctx.moveTo(origin.x, -height * 0.5);
+  ctx.lineTo(origin.x, height * 1.5);
+  ctx.stroke();
+
+  // mũi tên, gốc O
+  ctx.fillStyle='#fff';
+  ctx.beginPath();
+  ctx.moveTo(width-15, origin.y-8); ctx.lineTo(width, origin.y); ctx.lineTo(width-15, origin.y+8); ctx.fill();
   ctx.font = "16px Arial"; ctx.fillText("x", width-20, origin.y-10);
-
-  // --- mũi tên Oy ---
   ctx.beginPath();
-  ctx.moveTo(origin.x-8,15);
-  ctx.lineTo(origin.x,0);
-  ctx.lineTo(origin.x+8,15);
-  ctx.fillStyle='#fff'; ctx.fill();
+  ctx.moveTo(origin.x-8,15); ctx.lineTo(origin.x,0); ctx.lineTo(origin.x+8,15); ctx.fill();
   ctx.fillText("y", origin.x+10, 20);
 
-  // --- gốc O ---
-  ctx.fillStyle = '#fff';
   ctx.beginPath();
   ctx.arc(origin.x, origin.y, 5, 0, 2*Math.PI);
   ctx.fill();
   ctx.font = "14px Arial";
   ctx.fillText("O", origin.x+6, origin.y-6);
+
+  ctx.restore();
+}
+
+function sanitizeScale(s){
+  if (!isFinite(s) || s <= 0) return 40;
+  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
 }
 
 // ---- hatch ngoài miền nghiệm ----
@@ -599,26 +609,73 @@ function resizeCanvasAndRedraw() {
     return;
   }
 
-  // --- chọn khung hình vuông ---
-  const side = Math.min(width, height);   // cạnh hình vuông
-  const offsetX = (width  - side) / 2;    // căn giữa ngang
-  const offsetY = (height - side) / 2;    // căn giữa dọc
+  // cân bằng khung vuông
+  const side = Math.min(width, height);
+  let dx = xmax - xmin;
+  let dy = ymax - ymin;
+  let cx = (xmin + xmax) / 2;
+  let cy = (ymin + ymax) / 2;
+  let L = Math.max(dx, dy);
+  // scale trước khi clamp
+  let newScale = side / L;
+  scale = sanitizeScale(newScale);
 
-  // --- cân bằng hệ trục ---
-  const dx = xmax - xmin;
-  const dy = ymax - ymin;
-  const L = Math.max(dx, dy);             // độ dài lớn nhất theo đơn vị
-  scale = side / L;                       // 1 đơn vị = scale px
+  // tính origin theo scale đã clamp (phải dùng scale thực tế)
+  // ta tạo view pixel kích thước thực dựa trên scale
+  const viewW = scale * (xmax - xmin);
+  const viewH = scale * (ymax - ymin);
+  const padX  = (width  - viewW) / 2;
+  const padY  = (height - viewH) / 2;
 
-  // --- origin nằm trong hình vuông ---
   origin = {
-    x: offsetX + (-xmin) * scale,
-    y: side + offsetY + ymin * scale
+    x: padX - xmin * scale,
+    y: height - padY + ymin * scale
   };
 
   draw();
 }
 
+// --- trong applyRange: sau khi tính scale, sanitize nó ---
+document.getElementById('applyRange').onclick = ()=> {
+  let xmin = parseFloat(document.getElementById('xmin').value),
+      xmax = parseFloat(document.getElementById('xmax').value),
+      ymin = parseFloat(document.getElementById('ymin').value),
+      ymax = parseFloat(document.getElementById('ymax').value);
+
+  if (isNaN(xmin) || isNaN(xmax) || isNaN(ymin) || isNaN(ymax) || xmax <= xmin || ymax <= ymin) {
+    alert('Lỗi giá trị'); 
+    return;
+  }
+
+  // chuẩn hóa để dx == dy quanh tâm
+  let dx = xmax - xmin;
+  let dy = ymax - ymin;
+  let cx = (xmin + xmax) / 2;
+  let cy = (ymin + ymax) / 2;
+  let L = Math.max(dx, dy);
+
+  xmin = cx - L/2; xmax = cx + L/2; ymin = cy - L/2; ymax = cy + L/2;
+  document.getElementById('xmin').value = xmin;
+  document.getElementById('xmax').value = xmax;
+  document.getElementById('ymin').value = ymin;
+  document.getElementById('ymax').value = ymax;
+
+  // tính scale + origin rồi sanitize
+  let computedScale = Math.min(width/(xmax-xmin), height/(ymax-ymin));
+  scale = sanitizeScale(computedScale);
+
+  const viewW = scale * (xmax - xmin);
+  const viewH = scale * (ymax - ymin);
+  const padX  = (width  - viewW) / 2;
+  const padY  = (height - viewH) / 2;
+
+  origin = {
+    x: padX - xmin * scale,
+    y: height - padY + ymin * scale
+  };
+
+  draw();
+};
 window.addEventListener("orientationchange", resizeCanvasAndRedraw);
 
 
@@ -746,5 +803,6 @@ draw();
 </body>
 
 </html>
+
 
 
